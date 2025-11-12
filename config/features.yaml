@@ -1,0 +1,160 @@
+# features.yaml
+
+# Глобальные параметры
+global:
+  size_filters:
+    min_bytes: 1024        # отсечение файлов малого размера
+  sniffer:
+    head_bytes: 16384
+    tail_bytes: 16384
+    enabled_families:      # форматы, для которых были написаны обработчики
+      - gzip
+      - jpeg
+      - mp4
+      - ole2
+      - ooxml
+      - pdf
+      - png
+      - rar
+      - zip
+  parser:
+    fallback:
+      max_attempts: 0      # 0 или 1; без «перебора всех»
+
+features:
+  # --- Общие признаки ---
+  common:
+    - name: size_bytes
+      type: int
+    - name: log_size
+      type: float
+    - name: magic_ok
+      type: bool
+    - name: format_family
+      type: string
+    - name: magic_family
+      type: string
+
+  # Формат-ориентированные признаки
+  # Признаки корректности структуры
+  # --- GZIP ---
+  gzip:
+    - { name: gzip_header_ok,       type: bool }
+    - { name: gzip_mtime_present,   type: bool }
+    - { name: gzip_name_present,    type: bool }
+    - { name: parser_ok,            type: bool}
+    - { name: structure_consistent, type: bool}
+
+  # --- JPEG ---
+  jpeg:
+    - { name: jpeg_header_ok,        type: bool }
+    - { name: jpeg_sof_present,      type: bool }
+    - { name: jpeg_sos_present,      type: bool }
+    - { name: jpeg_exif_present,     type: bool }
+    - { name: jpeg_segments_count,   type: int }
+    - { name: parser_ok,             type: bool}
+    - { name: structure_consistent,  type: bool}
+
+  # --- MP4 / ISO-BMFF ---
+  mp4:
+    - { name: mp4_ftyp_present,     type: bool }
+    - { name: mp4_moov_present,     type: bool }
+    - { name: mp4_mdat_present,     type: bool }
+    - { name: mp4_box_tree_ok,      type: bool }
+    - { name: parser_ok,             type: bool}
+    - { name: structure_consistent,  type: bool}
+
+  # --- OLE2 / CFB ---
+  ole2:
+    - { name: ole_dir_ok,                    type: bool }
+    - { name: ole_stream_count,              type: int  }
+    - { name: ole_fat_ok,                    type: bool }
+    - { name: ole_mini_fat_ok,               type: bool }
+    - { name: ole_root_entry_present,        type: bool }
+    - { name: ole_summaryinfo_present,       type: bool }
+    - { name: ole_expected_streams_present,  type: bool }
+    - { name: parser_ok,                     type: bool}
+    - { name: structure_consistent,          type: bool}
+
+  # --- OOXML ---
+  ooxml:
+    - { name: ooxml_detected,           type: bool }
+    - { name: ooxml_coreparts_present,  type: bool }
+    - { name: ooxml_rel_count,          type: int  }
+    - { name: ooxml_pkg_ok,             type: bool }
+    - { name: parser_ok,                type: bool}
+    - { name: structure_consistent,     type: bool}
+
+  # --- PDF ---
+  pdf:
+    - { name: pdf_has_trailer,       type: bool }
+    - { name: pdf_startxref_found,   type: bool }
+    - { name: pdf_xref_ok,           type: bool }
+    - { name: pdf_obj_count_est,     type: float}
+    - { name: pdf_ids_present,       type: bool }
+    - { name: pdf_root_present,      type: bool }
+    - { name: pdf_trailer_ok,        type: bool }
+    - { name: pdf_version,           type: float}  # например 1.4 → 1.4
+    - { name: parser_ok,             type: bool}
+    - { name: structure_consistent,  type: bool}
+  # --- PNG ---
+  png:
+    - { name: png_header_ok,         type: bool }
+    - { name: png_ihdr_ok,           type: bool }
+    - { name: png_chunks_count,      type: int  }
+    - { name: png_idat_count,        type: int  }
+    - { name: png_end_iend_ok,       type: bool }
+    - { name: parser_ok,             type: bool}
+    - { name: structure_consistent,  type: bool}
+
+  # --- RAR ---
+  rar:
+    - { name: rar_header_ok,             type: bool }
+    - { name: rar_main_header_flags_ok,  type: bool }
+    - { name: rar_file_records_count,    type: int  }
+    - { name: rar_version_5,             type: bool }
+    - { name: parser_ok,                 type: bool }
+    - { name: structure_consistent,      type: bool}
+
+  # --- ZIP ---
+  zip:
+    - { name: zip_central_dir_ok,          type: bool }
+    - { name: zip_cd_offset_ok,            type: bool }
+    - { name: zip_entry_count,             type: int  }
+    - { name: zip_has_content_types,       type: bool }
+    - { name: zip_comment_len,             type: int  }
+    - { name: zip_names_utf8_fraction,     type: float }
+    - { name: zip_crc_present_fraction,    type: float }
+    - { name: parser_ok,                   type: bool}
+    - { name: structure_consistent,        type: bool}
+
+# --- Признаки легитимного шифрования ---
+  # --- PDF ---
+  pdf_enc:
+    - { name: pdf_encrypt_dict_present,     type: bool }
+    - { name: pdf_encrypt_filter,           type: string }
+    - { name: pdf_encrypt_metadata,         type: bool }
+
+  # --- (OLE2 (including OOXML)) ---
+  ole2_enc:
+    - { name: encrypted_package_present,           type: bool }
+    - { name: ooxml_encryption_info_present,       type: bool }
+    - { name: ooxml_encryption_type,               type: string }
+    - { name: ole_crypto_provider,                 type: string }
+    - { name: ole_rc4_meta_present,                type: bool }
+    - { name: ole_rc4_triplet_present,             type: bool }
+    
+  # --- ZIP ---
+  zip_enc:
+    - { name: zip_any_entry_encrypted,          type: bool }
+    - { name: zip_encryption_method,            type: string }
+    - { name: zip_all_headers_encrypted,        type: bool }
+  
+# --- Статистические признаки ---
+  statistic:
+    - { name: entropy_global,          type: float }
+    - { name: min_entropy_global,      type: float }
+    - { name: entropy_head,            type: float }
+    - { name: entropy_tail,            type: float }
+    - { name: byte_chi2,               type: float }
+    - { name: ic_index,                type: float }
