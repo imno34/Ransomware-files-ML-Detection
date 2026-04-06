@@ -6,11 +6,11 @@ from typing import Any, Dict, List, Tuple
 
 
 # Ключи общих признаков, получаемых от sniff.py
-_COMMON_KEYS = ("size_bytes", "log_size", "magic_ok", "format_family", "magic_family")
+_COMMON_KEYS = ("size_bytes", "log_size", "magic_ok", "format_family", "magic_family", "fallback_used", "fallback_format_family")
 
 
 # Сбор схемы признаков из конфигурационного файла (cfg['features'])
-# Возврщщает (ordered_columns, type_by_name)
+# Возвращает (ordered_columns, type_by_name)
 # Дубликаты имен удаляются, сохраняется первое вхождение, т.к. parser_ok и structure_consistent считаются для всех
 def _collect_schema(cfg: dict) -> Tuple[List[str], Dict[str, str]]:
     sections = cfg.get("features", {}) or {}

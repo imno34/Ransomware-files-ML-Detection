@@ -1,4 +1,4 @@
-# extract.py
+﻿# extract.py
 
 from __future__ import annotations
 
@@ -100,15 +100,19 @@ def extract_feats(
     cfg: dict,
     *,
     context: Optional[ExtractContext] = None,
+    fallback: bool = False,
 ) -> Dict[str, Any]:
     # Создание или использование существующего контекста
     ctx = context or ExtractContext(cfg)
 
     # 1. Вызов sniff.py для общих признаков
-    snf = sniff.sniff(file_path, ctx.cfg)
+    snf = sniff.sniff(file_path, ctx.cfg, fallback=fallback)
 
     # 2. Вызов обработчика признаков корректности структуры
     fam = str(snf.get("format_family", "other"))
+    if fam == "other":
+        fallback_fam = snf.get("fallback_format_family")
+        fam = "other" if fallback_fam is None else str(fallback_fam)
     parser = get_parser(fam)
     if parser is None:
         # Если обработчик не найден, заполняется None
@@ -172,14 +176,20 @@ def extract_feats(
 
 
 # Внутренняя функция для обработки целой директории (для CLI)
-def _extract_directory(input_dir: str, output_dir: str, cfg: dict) -> Tuple[str, int]:
+def _extract_directory(
+    input_dir: str,
+    output_dir: str,
+    cfg: dict,
+    *,
+    fallback: bool = False,
+) -> Tuple[str, int]:
     ctx = ExtractContext(cfg)
     os.makedirs(output_dir, exist_ok=True)
     out_csv = os.path.join(output_dir, "features_test.csv")
 
     rows: List[Dict[str, Any]] = []
     for path in iter_files(input_dir):
-        feats = extract_feats(path, cfg, context=ctx)
+        feats = extract_feats(path, cfg, context=ctx, fallback=fallback)
         row = {"path": os.path.relpath(path, start=input_dir).replace("\\", "/")}
         row.update(feats)
         rows.append(row)
@@ -195,6 +205,34 @@ def _extract_directory(input_dir: str, output_dir: str, cfg: dict) -> Tuple[str,
     return out_csv, len(rows)
 
 
+# Внутренняя функция для обработки одного файла (для CLI)
+def _extract_file(
+    input_file: str,
+    output_dir: str,
+    cfg: dict,
+    *,
+    fallback: bool = False,
+) -> Tuple[str, int]:
+    ctx = ExtractContext(cfg)
+    os.makedirs(output_dir, exist_ok=True)
+    out_csv = os.path.join(output_dir, "features_test.csv")
+
+    feats = extract_feats(input_file, cfg, context=ctx, fallback=fallback)
+    row = {"path": os.path.basename(input_file)}
+    row.update(feats)
+    rows = [row]
+
+    # Запись результатов в CSV
+    fieldnames = ["path"] + ctx.columns
+    with open(out_csv, "w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
+        writer.writeheader()
+        for r in rows:
+            writer.writerow({k: ("" if r.get(k) is None else r.get(k)) for k in fieldnames})
+
+    return out_csv, 1
+
+
 # Точка входа для запуска через командную строку
 def main(argv: Optional[Iterable[str]] = None) -> None:
     args = list(argv or [])
@@ -202,15 +240,28 @@ def main(argv: Optional[Iterable[str]] = None) -> None:
         import sys
         args = sys.argv[1:]
 
-    if len(args) != 2:
-        raise SystemExit("Использование: python -m featurizers.extract <INPUT_DIR> <OUTPUT_DIR>")
+    use_fallback = False
+    positional: List[str] = []
+    for arg in args:
+        if arg == "--fallback":
+            use_fallback = True
+            continue
+        positional.append(arg)
 
-    input_dir, output_dir = args
-    if not os.path.isdir(input_dir):
-        raise SystemExit(f"Директория не найдена: {input_dir}")
+    if len(positional) != 2:
+        raise SystemExit("Использование: python -m featurizers.extract [--fallback] <INPUT_PATH> <OUTPUT_DIR>")
+
+    input_path, output_dir = positional
 
     cfg = load_cfg()
-    out_csv, count = _extract_directory(input_dir, output_dir, cfg)
+    # Для директории извлекаем признаки рекурсивно, для файла — одну строку
+    if os.path.isdir(input_path):
+        out_csv, count = _extract_directory(input_path, output_dir, cfg, fallback=use_fallback)
+    elif os.path.isfile(input_path):
+        out_csv, count = _extract_file(input_path, output_dir, cfg, fallback=use_fallback)
+    else:
+        raise SystemExit(f"Путь не найден: {input_path}")
+
     print(f"Записано {count} строк в {out_csv}")
 
 

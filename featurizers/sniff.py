@@ -2,6 +2,7 @@
 import os
 import zipfile
 import math
+import re
 import yaml
 
 # Низкоуровневые функции проверки сигнатур
@@ -28,7 +29,7 @@ def _is_zstd(h: bytes)  -> bool: return h.startswith(b"\x28\xB5\x2F\xFD")
 def _is_sqlite(h: bytes)-> bool: return h.startswith(b"SQLite format 3\x00")
 def _is_pe(h: bytes)    -> bool: return h.startswith(b"MZ")
 def _is_elf(h: bytes)   -> bool: return h.startswith(b"\x7FELF")
-def _is_7z(h: bytes)    -> bool: return h.startswith(b"7z\xBC\xAF'\x1C") or h.startswith(b"\x37\x7A\xBC\AF\x27\x1C")
+def _is_7zip(h: bytes)    -> bool: return h.startswith(b"\x37\x7A\xBC\xAF\x27\x1C")
 def _is_tar(head: bytes, whole: bytes) -> bool:
     # Проверка TAR требует переместиться на смещение 257
     blob = head if len(head) >= 265 else (head + whole)
@@ -47,6 +48,44 @@ def _zip_looks_like_ooxml(path: str) -> bool:
         pass
     return False
 
+
+# Проверка OOXML по содержимому файла (fallback-логика)
+def _fallback_ooxml(path: str) -> bool:
+    coreparts = {"word/document.xml", "xl/workbook.xml", "ppt/presentation.xml"}
+    try:
+        with zipfile.ZipFile(path, "r") as zf:
+            names = zf.namelist()
+    except Exception:
+        return False
+
+    names_set = set(names)
+    has_content_types = "[Content_Types].xml" in names_set
+    has_office_root = any(n.startswith(("word/", "xl/", "ppt/")) for n in names)
+    has_corepart = any(core in names_set for core in coreparts)
+    return bool(has_content_types and has_office_root and has_corepart)
+
+
+# Проверка PDF по содержимому файла (fallback-логика)
+def _fallback_pdf(head: bytes, tail: bytes) -> bool:
+    if not head and not tail:
+        return False
+
+    # Объединяем head/tail для поиска ключевых PDF-маркеров
+    blob = head if head == tail else (head + b"\n" + tail)
+    blob_lower = blob.lower()
+
+    has_obj = re.search(br"\b\d+\s+\d+\s+obj\b", blob_lower) is not None
+    has_endobj = b"endobj" in blob_lower
+    has_xref_or_trailer = (
+        b"xref" in blob_lower or b"trailer" in blob_lower or b"startxref" in blob_lower
+    )
+    cond_1 = bool(has_obj and has_endobj and has_xref_or_trailer)
+
+    keys = (b"/root", b"/pages", b"/catalog")
+    cond_2 = sum(1 for key in keys if key in blob_lower) >= 2
+
+    return bool(cond_1 or cond_2)
+
 # Вспомогательная функция для безопасного чтения вложенных ключей из файла конфигурации
 def _get(cfg: dict, path: str, default=None):
     # Достаем cfg['a']['b']['c'] по строке 'a.b.c'
@@ -58,12 +97,11 @@ def _get(cfg: dict, path: str, default=None):
     return cur
 
 # Основная функция sniff.py по определению формата файла по его сигнатуре
-def sniff(path: str, cfg: dict):
-    # Загрузка параметров из файла конифгурации
+def sniff(path: str, cfg: dict, fallback: bool = False):
+    # Загрузка параметров из файла конфигурации
     head_bytes = int(_get(cfg, "global.sniffer.head_bytes", 16384))
     tail_bytes = int(_get(cfg, "global.sniffer.tail_bytes", 16384))
     enabled = set(_get(cfg, "global.sniffer.enabled_families", []) or [])
-    fallback_max_attempts = int(_get(cfg, "global.parser.fallback.max_attempts", 0))
 
     # Чтение заголовка и трейлера файла
     size = os.path.getsize(path)
@@ -85,6 +123,7 @@ def sniff(path: str, cfg: dict):
     elif "ole2" in enabled and _is_ole2(head): fam = "ole2"
     elif "rar"  in enabled and _is_rar(head):  fam = "rar"
     elif "mp4"  in enabled and _is_mp4(head):  fam = "mp4"
+    elif ("7zip" in enabled or "7z" in enabled) and _is_7zip(head): fam = "7zip"
     elif ("zip" in enabled or "ooxml" in enabled) and _is_zip(head):
         fam = "ooxml" if ("ooxml" in enabled and _zip_looks_like_ooxml(path)) else ("zip" if "zip" in enabled else "other")
 
@@ -109,7 +148,7 @@ def sniff(path: str, cfg: dict):
             _is_gif(head) or _is_webp(head) or _is_mp3(head) or _is_wav(head) or
             _is_flac(head) or _is_bzip2(head) or _is_lz4(head) or _is_zstd(head) or
             _is_sqlite(head) or _is_tar(head, head if len(head) >= 265 else head+tail) or
-            _is_pe(head) or _is_elf(head) or _is_7z(head)
+            _is_pe(head) or _is_elf(head) or _is_7zip(head)
         ):
             magic_ok = True
             # Присвоение служебного признака magic_family
@@ -125,7 +164,27 @@ def sniff(path: str, cfg: dict):
             elif _is_tar(head, head if len(head) >= 265 else head+tail): magic_family = "tar"
             elif _is_pe(head):    magic_family = "pe"
             elif _is_elf(head):   magic_family = "elf"
-            elif _is_7z(head):    magic_family = "7z"
+            elif _is_7zip(head):    magic_family = "7zip"
+
+    # Fallback-определение запускается только когда магия не сработала и передан флаг fallback
+    fallback_used = False
+    fallback_format_family = None
+    if not magic_ok and fallback:
+        fallback_ooxml = _fallback_ooxml(path)
+        fallback_pdf = _fallback_pdf(head, tail)
+
+        if fallback_ooxml and fallback_pdf:
+            fallback_format_family = "error"
+            fallback_used = False
+        elif fallback_ooxml:
+            fallback_format_family = "ooxml"
+            fallback_used = True
+        elif fallback_pdf:
+            fallback_format_family = "pdf"
+            fallback_used = True
+        else:
+            fallback_format_family = "other"
+            fallback_used = False
 
     # Вычисление логарифма размера файла (log_size)
     log_size = 0.0
@@ -139,9 +198,10 @@ def sniff(path: str, cfg: dict):
         "format_family": fam,
         "magic_ok": magic_ok,
         "magic_family": magic_family,
+        "fallback_used": fallback_used,
+        "fallback_format_family": fallback_format_family,
         "size_bytes": size,
         "log_size": log_size,
-        "fallback_max_attempts": fallback_max_attempts,
     }
 
 # ------ Код для запуска через CLI (командную строку) ------

@@ -39,3 +39,9 @@ Thumbs.db
 # Personal
 .docx
 .pdf
+
+# Additional data
+additional_data/*
+
+# Copilot context
+.github/copilot-instructions.md

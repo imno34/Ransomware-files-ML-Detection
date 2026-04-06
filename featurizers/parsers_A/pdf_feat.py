@@ -1,8 +1,11 @@
 ﻿# parsers_A/pdf_feat.py
 
+import argparse
+import csv
 import os
 import math
 import re
+from pathlib import Path
 
 HEAD_READ = 64 * 1024     # Объем чтения "головы" файла (байт)
 TAIL_READ = 128 * 1024    # Объем чтения "хвоста" файла (байт)
@@ -232,3 +235,53 @@ def parse_pdf(path: str) -> dict:
         return parse_pdf_features(path)
     except Exception:
         return DEF_RETURN.copy()
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Минималистичный CLI для PDF-парсера признаков.")
+    parser.add_argument("input_path", type=Path, help="Путь к файлу или директории с файлами.")
+    parser.add_argument("output_dir", type=Path, help="Директория для сохранения CSV с признаками.")
+    args = parser.parse_args()
+
+    input_path = args.input_path.resolve()
+    output_dir = args.output_dir.resolve()
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    if input_path.is_file():
+        files = [input_path]
+        base_dir = input_path.parent
+    elif input_path.is_dir():
+        files = sorted([p for p in input_path.rglob("*") if p.is_file()])
+        base_dir = input_path
+    else:
+        raise SystemExit(f"Путь не найден: {input_path}")
+
+    if not files:
+        raise SystemExit(f"Файлы не найдены: {input_path}")
+
+    rows = []
+    for file_path in files:
+        result = parse_pdf(str(file_path))
+        try:
+            rel_path = file_path.relative_to(base_dir)
+        except ValueError:
+            rel_path = file_path.name
+        row = {"path": str(rel_path).replace("\\", "/")}
+        row.update(result)
+        rows.append(row)
+
+    csv_path = output_dir / "pdf_parser_features.csv"
+    fieldnames = list(rows[0].keys())
+
+    with csv_path.open("w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({k: ("" if row.get(k) is None else row.get(k)) for k in fieldnames})
+
+    print(f"Обработано файлов: {len(rows)}")
+    print(f"Признаки сохранены в {csv_path}")
+
+
+if __name__ == "__main__":
+    main()

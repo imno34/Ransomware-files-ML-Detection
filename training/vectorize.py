@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from featurizers.extract import collect_schema, load_cfg
 
 # Служебные колонки, которые не являются признаками для модели
-SERVICE_COLUMNS = {"path", "gt_class", "sequence_id", "orig_ext", "curr_ext"}
+SERVICE_COLUMNS = {"path", "gt_class", "sequence_id", "orig_ext", "extra", "curr_ext", "group_id", "pair_id", "is_augmented", "aug_encryption", "aug_parent"}
 # Кодирование текстовых меток классов в числовые
 LABEL_MAP = {
     "benign": 0,

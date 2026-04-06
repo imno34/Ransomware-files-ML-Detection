@@ -26,6 +26,7 @@ LABELS = sorted(vectorize.LABEL_MAP.values())
 # Имена файлов для сохранения результатов
 METRICS_FILENAME = "metrics_valid.json"
 ROC_PLOT_FILENAME = "roc_curve_mlp.png"
+VALID_PREDICTIONS_FILENAME = "valid_predictions.csv"
 
 # Загрузка CSV-файла сплита (train/valid/test)
 def load_split(splits_dir: Path, split_name: str) -> pd.DataFrame:
@@ -36,6 +37,12 @@ def load_split(splits_dir: Path, split_name: str) -> pd.DataFrame:
 
 # Гарантия существования выходной директории
 def ensure_output_dir(path: Path) -> Path:
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+# Гарантия существования директории vectorized внутри каталога со сплитами
+def ensure_vectorized_dir(splits_dir: Path) -> Path:
+    path = splits_dir / vectorize.VECTORIZE_SUBDIR
     path.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -130,13 +137,44 @@ def save_metrics(metrics: Dict[str, object], output_dir: Path) -> None:
         fh.write("\n")
 
 
+def save_valid_predictions(
+    clf: MLPClassifier,
+    results: Dict[str, pd.DataFrame],
+    valid_df: pd.DataFrame,
+    output_dir: Path,
+) -> None:
+    X_valid = results["X_valid"].to_numpy(dtype=np.float32)
+    y_pred = clf.predict(X_valid)
+    y_proba_raw = clf.predict_proba(X_valid)
+
+    valid_predictions_df = valid_df.copy()
+    valid_predictions_df["y_pred"] = y_pred.astype(np.int64)
+
+    # Align probabilities with fixed class ids 0/1/2
+    proba_by_label = np.zeros((len(valid_predictions_df), len(LABELS)), dtype=np.float64)
+    class_to_idx = {int(cls): idx for idx, cls in enumerate(clf.classes_)}
+    for label_pos, label in enumerate(LABELS):
+        src_idx = class_to_idx.get(int(label))
+        if src_idx is not None:
+            proba_by_label[:, label_pos] = y_proba_raw[:, src_idx]
+
+    for label_pos, label in enumerate(LABELS):
+        valid_predictions_df[f"y_proba_{label}"] = proba_by_label[:, label_pos]
+
+    valid_predictions_df.to_csv(
+        output_dir / VALID_PREDICTIONS_FILENAME,
+        index=False,
+        encoding="utf-8",
+    )
+
+
 def main() -> None:
     # Определение и обработка аргументов командной строки
     parser = argparse.ArgumentParser(description="Train MLP classifier on vectorized dataset splits.")
     parser.add_argument(
         "splits_dir",
         type=Path,
-        help="Directory containing train/valid/test CSVs and the vectorized/ subdirectory.",
+        help="Directory containing train/valid/test CSVs. vectorized/ will be created automatically.",
     )
     parser.add_argument(
         "output_dir",
@@ -151,11 +189,15 @@ def main() -> None:
     if not splits_dir.is_dir():
         raise FileNotFoundError(f"Директория сплитов не найдена: {splits_dir}")
 
+    ensure_vectorized_dir(splits_dir)
+
     # Запуск обучения модели
     results = vectorize_splits(splits_dir)
     clf = train_classifier(results)
     metrics = compute_metrics(clf, results, output_dir)
     save_metrics(metrics, output_dir)
+    valid_df = load_split(splits_dir, "valid")
+    save_valid_predictions(clf, results, valid_df, output_dir)
 
     print(f"Обучение завершено. Метрики сохранены в {output_dir / METRICS_FILENAME}")
 

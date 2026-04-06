@@ -16,10 +16,8 @@ global:
       - pdf
       - png
       - rar
+      - 7zip
       - zip
-  parser:
-    fallback:
-      max_attempts: 0      # 0 или 1; без «перебора всех»
 
 features:
   # --- Общие признаки ---
@@ -34,8 +32,13 @@ features:
       type: string
     - name: magic_family
       type: string
+    - name: fallback_used
+      type: bool
+    - name: fallback_format_family
+      type: string
 
   # Формат-ориентированные признаки
+
   # Признаки корректности структуры
   # --- GZIP ---
   gzip:
@@ -78,12 +81,14 @@ features:
 
   # --- OOXML ---
   ooxml:
-    - { name: ooxml_detected,           type: bool }
-    - { name: ooxml_coreparts_present,  type: bool }
-    - { name: ooxml_rel_count,          type: int  }
-    - { name: ooxml_pkg_ok,             type: bool }
-    - { name: parser_ok,                type: bool}
-    - { name: structure_consistent,     type: bool}
+    - { name: ooxml_detected,                  type: bool }
+    - { name: ooxml_coreparts_present,         type: bool }
+    - { name: ooxml_rel_count,                 type: int  }
+    - { name: ooxml_pkg_ok,                    type: bool }
+    - { name: ooxml_content_types_valid,       type: bool }
+    - { name: ooxml_relationships_graph_valid, type: bool }    
+    - { name: parser_ok,                       type: bool}
+    - { name: structure_consistent,            type: bool}
 
   # --- PDF ---
   pdf:
@@ -127,6 +132,16 @@ features:
     - { name: zip_crc_present_fraction,    type: float }
     - { name: parser_ok,                   type: bool}
     - { name: structure_consistent,        type: bool}
+  
+  # --- 7zip ---
+  7zip:
+    - { name: 7zip_start_header_crc_valid,     type: bool }
+    - { name: 7zip_next_header_layout_valid,   type: bool }
+    - { name: 7zip_next_header_crc_valid,      type: bool }
+    - { name: 7zip_header_marker_valid,        type: bool }
+    - { name: 7zip_header_sections_valid,      type: bool }
+    - { name: parser_ok,                       type: bool}
+    - { name: structure_consistent,            type: bool} 
 
 # --- Признаки легитимного шифрования ---
   # --- PDF ---
@@ -140,9 +155,10 @@ features:
     - { name: encrypted_package_present,           type: bool }
     - { name: ooxml_encryption_info_present,       type: bool }
     - { name: ooxml_encryption_type,               type: string }
-    - { name: ole_crypto_provider,                 type: string }
-    - { name: ole_rc4_meta_present,                type: bool }
-    - { name: ole_rc4_triplet_present,             type: bool }
+    - { name: ole_format_family,                   type: string }
+    - { name: ole_encryption_present,              type: bool }
+    - { name: ole_encryption_struct_valid,         type: bool }
+    - { name: ole_write_protection_present,        type: bool }
     
   # --- ZIP ---
   zip_enc:
@@ -150,6 +166,12 @@ features:
     - { name: zip_encryption_method,            type: string }
     - { name: zip_all_headers_encrypted,        type: bool }
   
+  # --- 7zip ---
+  7zip_enc:
+    - { name: 7zip_needs_password,            type: bool }
+    - { name: 7zip_aes_method_present,        type: bool }
+    - { name: 7zip_names_hidden_likely,       type: bool }
+
 # --- Статистические признаки ---
   statistic:
     - { name: entropy_global,          type: float }
