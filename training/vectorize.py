@@ -294,12 +294,28 @@ def vectorize(
     train_df: pd.DataFrame,
     valid_df: pd.DataFrame,
     test_df: pd.DataFrame,
+<<<<<<< HEAD
     splits_dir: Path | str,
 ) -> Dict[str, pd.DataFrame]:
 
     vectorized_dir = Path(splits_dir) / VECTORIZE_SUBDIR
     if not vectorized_dir.is_dir():
         raise FileNotFoundError(f"Ожидаемая директория не найдена: {vectorized_dir}")
+=======
+    splits_dir: Path | str | None = None,
+    output_dir: Path | str | None = None,
+    persist: bool = True,
+) -> Dict[str, pd.DataFrame]:
+
+    if persist and output_dir is None and splits_dir is None:
+        raise ValueError("Either output_dir or splits_dir must be provided for vectorized artifacts")
+
+    vectorized_dir: Path | None = None
+    if persist:
+        artifacts_root = Path(output_dir if output_dir is not None else splits_dir)
+        vectorized_dir = artifacts_root / VECTORIZE_SUBDIR
+        vectorized_dir.mkdir(parents=True, exist_ok=True)
+>>>>>>> origin/main
 
     # Загрузка схемы числовых признаков из файла конфигурации
     feature_list, dtype_map = load_numeric_schema()
@@ -343,6 +359,7 @@ def vectorize(
     class_weights = compute_class_weights(y_train)
 
     # 8. Сохранение артефактов
+<<<<<<< HEAD
     persist_artifacts(
         vectorized_dir,
         train_X,
@@ -354,6 +371,22 @@ def vectorize(
         feature_list,
         class_weights,
     )
+=======
+    if persist:
+        if vectorized_dir is None:
+            raise RuntimeError("vectorized_dir is not initialized")
+        persist_artifacts(
+            vectorized_dir,
+            train_X,
+            valid_X,
+            test_X,
+            y_train,
+            y_valid,
+            y_test,
+            feature_list,
+            class_weights,
+        )
+>>>>>>> origin/main
 
     # Возврат векторизованных данных
     return {
@@ -365,4 +398,8 @@ def vectorize(
         "y_test": y_test,
         "feature_list": feature_list,
         "class_weights": class_weights,
+<<<<<<< HEAD
     }
+=======
+    }
+>>>>>>> origin/main

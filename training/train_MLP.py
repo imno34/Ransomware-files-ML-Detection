@@ -14,6 +14,10 @@ from sklearn.metrics import (
     average_precision_score,
     confusion_matrix,
     f1_score,
+<<<<<<< HEAD
+=======
+    recall_score,
+>>>>>>> origin/main
     roc_auc_score,
     roc_curve,
 )
@@ -24,9 +28,15 @@ import vectorize
 # Определение меток классов на основе артефакта после векторизации
 LABELS = sorted(vectorize.LABEL_MAP.values())
 # Имена файлов для сохранения результатов
+<<<<<<< HEAD
 METRICS_FILENAME = "metrics_valid.json"
 ROC_PLOT_FILENAME = "roc_curve_mlp.png"
 VALID_PREDICTIONS_FILENAME = "valid_predictions.csv"
+=======
+METRICS_FILENAME = "metrics_test.json"
+ROC_PLOT_FILENAME = "roc_curve_mlp.png"
+TEST_PREDICTIONS_FILENAME = "test_predictions.csv"
+>>>>>>> origin/main
 
 # Загрузка CSV-файла сплита (train/valid/test)
 def load_split(splits_dir: Path, split_name: str) -> pd.DataFrame:
@@ -77,6 +87,7 @@ def compute_metrics(
     results: Dict[str, pd.DataFrame],
     output_dir: Path,
 ) -> Dict[str, object]:
+<<<<<<< HEAD
     X_valid = results["X_valid"].to_numpy(dtype=np.float32)
     y_valid = results["y_valid"].to_numpy(dtype=np.int64)
 
@@ -88,20 +99,51 @@ def compute_metrics(
     macro_f1 = float(f1_score(y_valid, y_pred, labels=LABELS, average="macro", zero_division=0))
     per_class_f1 = f1_score(
         y_valid,
+=======
+    X_test = results["X_test"].to_numpy(dtype=np.float32)
+    y_test = results["y_test"].to_numpy(dtype=np.int64)
+
+    # Получение предсказаний
+    y_pred = clf.predict(X_test)
+    y_proba = clf.predict_proba(X_test)
+
+    # Расчет F1-меры (Macro-F1 и F1 для каждого класса)
+    macro_f1 = float(f1_score(y_test, y_pred, labels=LABELS, average="macro", zero_division=0))
+    per_class_f1 = f1_score(
+        y_test,
+>>>>>>> origin/main
         y_pred,
         labels=LABELS,
         average=None,
         zero_division=0,
     )
     # Построение матрицы ошибок
+<<<<<<< HEAD
     confusion = confusion_matrix(y_valid, y_pred, labels=LABELS).astype(int).tolist()
+=======
+    confusion = confusion_matrix(y_test, y_pred, labels=LABELS).astype(int).tolist()
+    ransomware_label = int(vectorize.LABEL_MAP["ransomware-encrypted"])
+    ransomware_recall = float(
+        recall_score(
+            y_test,
+            y_pred,
+            labels=[ransomware_label],
+            average=None,
+            zero_division=0,
+        )[0]
+    )
+>>>>>>> origin/main
 
     # Расчет PR-AUC (Precision-Recall) и ROC-AUC для каждого класса
     pr_auc = {}
     roc_auc = {}
     fig, ax = plt.subplots(figsize=(8, 6))
     for idx, label in enumerate(LABELS):
+<<<<<<< HEAD
         binary_truth = (y_valid == label).astype(int)
+=======
+        binary_truth = (y_test == label).astype(int)
+>>>>>>> origin/main
         probs = y_proba[:, idx]
         pr_auc[str(label)] = float(average_precision_score(binary_truth, probs))
         roc_auc[str(label)] = float(roc_auc_score(binary_truth, probs))
@@ -113,7 +155,11 @@ def compute_metrics(
     ax.plot([0, 1], [0, 1], "k--", label="Random chance")
     ax.set_xlabel("False Positive Rate")
     ax.set_ylabel("True Positive Rate")
+<<<<<<< HEAD
     ax.set_title("ROC Curve (validation)")
+=======
+    ax.set_title("ROC Curve (test)")
+>>>>>>> origin/main
     ax.legend(loc="lower right")
     roc_path = output_dir / ROC_PLOT_FILENAME
     fig.tight_layout()
@@ -127,6 +173,10 @@ def compute_metrics(
         "confusion_matrix": confusion,
         "pr_auc": pr_auc,
         "roc_auc": roc_auc,
+<<<<<<< HEAD
+=======
+        "class_2_recall": ransomware_recall,
+>>>>>>> origin/main
     }
 
 # Сохранение метрик в JSON-файл
@@ -137,6 +187,7 @@ def save_metrics(metrics: Dict[str, object], output_dir: Path) -> None:
         fh.write("\n")
 
 
+<<<<<<< HEAD
 def save_valid_predictions(
     clf: MLPClassifier,
     results: Dict[str, pd.DataFrame],
@@ -152,6 +203,23 @@ def save_valid_predictions(
 
     # Align probabilities with fixed class ids 0/1/2
     proba_by_label = np.zeros((len(valid_predictions_df), len(LABELS)), dtype=np.float64)
+=======
+def save_test_predictions(
+    clf: MLPClassifier,
+    results: Dict[str, pd.DataFrame],
+    test_df: pd.DataFrame,
+    output_dir: Path,
+) -> None:
+    X_test = results["X_test"].to_numpy(dtype=np.float32)
+    y_pred = clf.predict(X_test)
+    y_proba_raw = clf.predict_proba(X_test)
+
+    test_predictions_df = test_df.copy()
+    test_predictions_df["y_pred"] = y_pred.astype(np.int64)
+
+    # Align probabilities with fixed class ids 0/1/2
+    proba_by_label = np.zeros((len(test_predictions_df), len(LABELS)), dtype=np.float64)
+>>>>>>> origin/main
     class_to_idx = {int(cls): idx for idx, cls in enumerate(clf.classes_)}
     for label_pos, label in enumerate(LABELS):
         src_idx = class_to_idx.get(int(label))
@@ -159,10 +227,17 @@ def save_valid_predictions(
             proba_by_label[:, label_pos] = y_proba_raw[:, src_idx]
 
     for label_pos, label in enumerate(LABELS):
+<<<<<<< HEAD
         valid_predictions_df[f"y_proba_{label}"] = proba_by_label[:, label_pos]
 
     valid_predictions_df.to_csv(
         output_dir / VALID_PREDICTIONS_FILENAME,
+=======
+        test_predictions_df[f"y_proba_{label}"] = proba_by_label[:, label_pos]
+
+    test_predictions_df.to_csv(
+        output_dir / TEST_PREDICTIONS_FILENAME,
+>>>>>>> origin/main
         index=False,
         encoding="utf-8",
     )
@@ -179,7 +254,11 @@ def main() -> None:
     parser.add_argument(
         "output_dir",
         type=Path,
+<<<<<<< HEAD
         help="Directory to store training artifacts (metrics_valid.json).",
+=======
+        help="Directory to store training artifacts (metrics_test.json).",
+>>>>>>> origin/main
     )
     args = parser.parse_args()
 
@@ -196,8 +275,13 @@ def main() -> None:
     clf = train_classifier(results)
     metrics = compute_metrics(clf, results, output_dir)
     save_metrics(metrics, output_dir)
+<<<<<<< HEAD
     valid_df = load_split(splits_dir, "valid")
     save_valid_predictions(clf, results, valid_df, output_dir)
+=======
+    test_df = load_split(splits_dir, "test")
+    save_test_predictions(clf, results, test_df, output_dir)
+>>>>>>> origin/main
 
     print(f"Обучение завершено. Метрики сохранены в {output_dir / METRICS_FILENAME}")
 
