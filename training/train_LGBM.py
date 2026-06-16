@@ -10,10 +10,7 @@ from typing import Dict
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-<<<<<<< HEAD
-=======
 import lightgbm as lgb
->>>>>>> origin/main
 from lightgbm import LGBMClassifier
 from sklearn.metrics import (
     average_precision_score,
@@ -28,43 +25,6 @@ import vectorize
 # Class labels derived from vectorization metadata
 LABELS = sorted(vectorize.LABEL_MAP.values())
 # Output artifact filenames
-<<<<<<< HEAD
-METRICS_FILENAME = "metrics_valid.json"
-ROC_PLOT_FILENAME = "roc_curve_lgbm.png"
-VALID_PREDICTIONS_FILENAME = "valid_predictions.csv"
-
-# Load split CSV (train/valid/test)
-def load_split(splits_dir: Path, split_name: str) -> pd.DataFrame:
-    csv_path = splits_dir / f"{split_name}.csv"
-    if not csv_path.is_file():
-        raise FileNotFoundError(f"Файл сплита не найден: {csv_path}")
-    return pd.read_csv(csv_path)
-
-
-def load_train_split(splits_dir: Path, train_split_path: Path | None) -> pd.DataFrame:
-    if train_split_path is None:
-        return load_split(splits_dir, "train")
-
-    resolved_path = train_split_path.resolve()
-    if resolved_path.suffix.lower() != ".csv":
-        raise ValueError(f"Train split path must point to a CSV file: {resolved_path}")
-    if not resolved_path.is_file():
-        raise FileNotFoundError(f"Train split file not found: {resolved_path}")
-    return pd.read_csv(resolved_path)
-
-
-def load_valid_split(splits_dir: Path, valid_split_path: Path | None) -> pd.DataFrame:
-    if valid_split_path is None:
-        return load_split(splits_dir, "valid")
-
-    resolved_path = valid_split_path.resolve()
-    if resolved_path.suffix.lower() != ".csv":
-        raise ValueError(f"Valid split path must point to a CSV file: {resolved_path}")
-    if not resolved_path.is_file():
-        raise FileNotFoundError(f"Valid split file not found: {resolved_path}")
-    return pd.read_csv(resolved_path)
-
-=======
 METRICS_FILENAME = "metrics_test.json"
 ROC_PLOT_FILENAME = "roc_curve_lgbm.png"
 TEST_PREDICTIONS_FILENAME = "test_predictions.csv"
@@ -81,29 +41,11 @@ def load_split(csv_path: Path, split_name: str) -> pd.DataFrame:
     return pd.read_csv(csv_path)
 
 
->>>>>>> origin/main
 # Ensure output directory exists
 def ensure_output_dir(path: Path) -> Path:
     path.mkdir(parents=True, exist_ok=True)
     return path
 
-<<<<<<< HEAD
-# Ensure vectorized subdirectory exists under splits directory
-def ensure_vectorized_dir(splits_dir: Path) -> Path:
-    path = splits_dir / vectorize.VECTORIZE_SUBDIR
-    path.mkdir(parents=True, exist_ok=True)
-    return path
-
-# Load and vectorize split CSVs
-def vectorize_splits(
-    splits_dir: Path,
-    train_split_path: Path | None = None,
-    valid_split_path: Path | None = None,
-) -> Dict[str, pd.DataFrame]:
-    train_df = load_train_split(splits_dir, train_split_path)
-    valid_df = load_valid_split(splits_dir, valid_split_path)
-    test_df = load_split(splits_dir, "test")
-=======
 # Load and vectorize split CSVs
 def vectorize_splits(
     train_split_path: Path,
@@ -114,26 +56,18 @@ def vectorize_splits(
     train_df = load_split(train_split_path, "train")
     valid_df = load_split(valid_split_path, "valid")
     test_df = load_split(test_split_path, "test")
->>>>>>> origin/main
 
     # Call the main vectorization pipeline from vectorize.py
     return vectorize.vectorize(
         train_df=train_df,
         valid_df=valid_df,
         test_df=test_df,
-<<<<<<< HEAD
-        splits_dir=splits_dir,
-    )
-# Train LightGBM classifier
-def train_classifier(results: Dict[str, pd.DataFrame]) -> LGBMClassifier:
-=======
         output_dir=output_dir,
     )
 # Train LightGBM classifier
 def train_classifier(
     results: Dict[str, pd.DataFrame],
 ) -> tuple[LGBMClassifier, Dict[str, Dict[str, list[float]]]]:
->>>>>>> origin/main
     clf = LGBMClassifier(
         num_leaves=64,
         n_estimators=700,
@@ -146,20 +80,6 @@ def train_classifier(
     )
     X_train = results["X_train"]
     y_train = results["y_train"].to_numpy(dtype=np.int64)
-<<<<<<< HEAD
-    
-    # Fit the model
-    clf.fit(X_train, y_train)
-    return clf
-
-
-def parse_is_augmented_mask(valid_df: pd.DataFrame) -> np.ndarray:
-    # Non-strict parsing: treat missing or unknown values as False.
-    if "is_augmented" not in valid_df.columns:
-        return np.zeros(len(valid_df), dtype=bool)
-
-    raw = valid_df["is_augmented"]
-=======
     X_valid = results["X_valid"]
     y_valid = results["y_valid"].to_numpy(dtype=np.int64)
     evals_result: Dict[str, Dict[str, list[float]]] = {}
@@ -217,7 +137,6 @@ def parse_is_augmented_mask(test_df: pd.DataFrame) -> np.ndarray:
         return np.zeros(len(test_df), dtype=bool)
 
     raw = test_df["is_augmented"]
->>>>>>> origin/main
     if pd.api.types.is_bool_dtype(raw):
         return raw.fillna(False).to_numpy(dtype=bool)
 
@@ -252,11 +171,7 @@ def compute_augmented_recall(
 
 
 def compute_pair_consistency_score(
-<<<<<<< HEAD
-    valid_df: pd.DataFrame,
-=======
     test_df: pd.DataFrame,
->>>>>>> origin/main
     is_augmented_mask: np.ndarray,
     y_true: np.ndarray,
     y_pred: np.ndarray,
@@ -268,19 +183,11 @@ def compute_pair_consistency_score(
     }
 
     required_cols = {"pair_id", "aug_parent"}
-<<<<<<< HEAD
-    missing = sorted(col for col in required_cols if col not in valid_df.columns)
-    if missing:
-        raise ValueError(f"valid split must contain columns for PCS: {missing}")
-
-    working = valid_df[["pair_id", "aug_parent"]].copy()
-=======
     missing = sorted(col for col in required_cols if col not in test_df.columns)
     if missing:
         raise ValueError(f"test split must contain columns for PCS: {missing}")
 
     working = test_df[["pair_id", "aug_parent"]].copy()
->>>>>>> origin/main
     working["is_augmented"] = is_augmented_mask
     working["y_true"] = y_true.astype(np.int64)
     working["y_pred"] = y_pred.astype(np.int64)
@@ -338,27 +245,6 @@ def compute_pair_consistency_score(
         "num_samples_used": int(joined.shape[0]),
     }
 
-<<<<<<< HEAD
-# Compute validation metrics
-def compute_metrics(
-    clf: LGBMClassifier,
-    results: Dict[str, pd.DataFrame],
-    valid_df: pd.DataFrame,
-    output_dir: Path,
-) -> Dict[str, object]:
-    X_valid = results["X_valid"]
-    y_valid = results["y_valid"].to_numpy(dtype=np.int64)
-    is_augmented_mask = parse_is_augmented_mask(valid_df)
-
-    # Generate predictions
-    y_pred = clf.predict(X_valid)
-    y_proba = clf.predict_proba(X_valid)
-
-    # Compute F1 metrics (macro and per-class)
-    macro_f1 = float(f1_score(y_valid, y_pred, labels=LABELS, average="macro", zero_division=0))
-    per_class_f1 = f1_score(
-        y_valid,
-=======
 # Compute test metrics
 def compute_metrics(
     clf: LGBMClassifier,
@@ -378,29 +264,20 @@ def compute_metrics(
     macro_f1 = float(f1_score(y_test, y_pred, labels=LABELS, average="macro", zero_division=0))
     per_class_f1 = f1_score(
         y_test,
->>>>>>> origin/main
         y_pred,
         labels=LABELS,
         average=None,
         zero_division=0,
     )
     # Compute confusion matrix
-<<<<<<< HEAD
-    confusion = confusion_matrix(y_valid, y_pred, labels=LABELS).astype(int).tolist()
-=======
     confusion = confusion_matrix(y_test, y_pred, labels=LABELS).astype(int).tolist()
->>>>>>> origin/main
 
     # Compute PR-AUC and ROC-AUC for each class
     pr_auc = {}
     roc_auc = {}
     fig, ax = plt.subplots(figsize=(8, 6))
     for idx, label in enumerate(LABELS):
-<<<<<<< HEAD
-        binary_truth = (y_valid == label).astype(int)
-=======
         binary_truth = (y_test == label).astype(int)
->>>>>>> origin/main
         probs = y_proba[:, idx]
         pr_auc[str(label)] = float(average_precision_score(binary_truth, probs))
         roc_auc[str(label)] = float(roc_auc_score(binary_truth, probs))
@@ -412,24 +289,15 @@ def compute_metrics(
     ax.plot([0, 1], [0, 1], "k--", label="Random chance")
     ax.set_xlabel("False Positive Rate")
     ax.set_ylabel("True Positive Rate")
-<<<<<<< HEAD
-    ax.set_title("ROC Curve (validation)")
-=======
     ax.set_title("ROC Curve (test)")
->>>>>>> origin/main
     ax.legend(loc="lower right")
     roc_path = output_dir / ROC_PLOT_FILENAME
     fig.tight_layout()
     fig.savefig(roc_path, dpi=150)
     plt.close(fig)
 
-<<<<<<< HEAD
-    augmented_recall = compute_augmented_recall(is_augmented_mask, y_valid, y_pred)
-    pcs = compute_pair_consistency_score(valid_df, is_augmented_mask, y_valid, y_pred)
-=======
     augmented_recall = compute_augmented_recall(is_augmented_mask, y_test, y_pred)
     pcs = compute_pair_consistency_score(test_df, is_augmented_mask, y_test, y_pred)
->>>>>>> origin/main
 
     # Return metrics payload
     return {
@@ -450,23 +318,6 @@ def save_metrics(metrics: Dict[str, object], output_dir: Path) -> None:
         fh.write("\n")
 
 
-<<<<<<< HEAD
-def save_valid_predictions(
-    clf: LGBMClassifier,
-    results: Dict[str, pd.DataFrame],
-    valid_df: pd.DataFrame,
-    output_dir: Path,
-) -> None:
-    X_valid = results["X_valid"]
-    y_pred = clf.predict(X_valid)
-    y_proba_raw = clf.predict_proba(X_valid)
-
-    valid_predictions_df = valid_df.copy()
-    valid_predictions_df["y_pred"] = y_pred.astype(np.int64)
-
-    # Align probability columns with class labels 0/1/2 based on clf.classes_
-    proba_by_label = np.zeros((len(valid_predictions_df), len(LABELS)), dtype=np.float64)
-=======
 def save_test_predictions(
     clf: LGBMClassifier,
     results: Dict[str, pd.DataFrame],
@@ -482,7 +333,6 @@ def save_test_predictions(
 
     # Align probability columns with clf.classes_
     proba_by_label = np.zeros((len(test_predictions_df), len(LABELS)), dtype=np.float64)
->>>>>>> origin/main
     class_to_idx = {int(cls): idx for idx, cls in enumerate(clf.classes_)}
     for label_pos, label in enumerate(LABELS):
         src_idx = class_to_idx.get(int(label))
@@ -490,17 +340,10 @@ def save_test_predictions(
             proba_by_label[:, label_pos] = y_proba_raw[:, src_idx]
 
     for label_pos, label in enumerate(LABELS):
-<<<<<<< HEAD
-        valid_predictions_df[f"y_proba_{label}"] = proba_by_label[:, label_pos]
-
-    valid_predictions_df.to_csv(
-        output_dir / VALID_PREDICTIONS_FILENAME,
-=======
         test_predictions_df[f"y_proba_{label}"] = proba_by_label[:, label_pos]
 
     test_predictions_df.to_csv(
         output_dir / TEST_PREDICTIONS_FILENAME,
->>>>>>> origin/main
         index=False,
         encoding="utf-8",
     )
@@ -509,12 +352,6 @@ def main() -> None:
     # Parse CLI arguments
     parser = argparse.ArgumentParser(description="Train LightGBM on vectorized dataset splits.")
     parser.add_argument(
-<<<<<<< HEAD
-        "--sdir",
-        type=Path,
-        required=True,
-        help="Directory containing train/valid/test CSVs. vectorized/ will be created automatically.",
-=======
         "--trn",
         "--train-split",
         dest="train_split",
@@ -537,53 +374,11 @@ def main() -> None:
         type=Path,
         required=True,
         help="Path to test CSV.",
->>>>>>> origin/main
     )
     parser.add_argument(
         "--odir",
         type=Path,
         required=True,
-<<<<<<< HEAD
-        help="Directory to store training artifacts (metrics_valid.json).",
-    )
-    parser.add_argument(
-        "--train-split",
-        "--trn",
-        dest="train_split",
-        type=Path,
-        default=None,
-        help="Optional path to external train CSV. If omitted, splits_dir/train.csv is used.",
-    )
-    parser.add_argument(
-        "--valid-split",
-        "--vld",
-        dest="valid_split",
-        type=Path,
-        default=None,
-        help="Optional path to external valid CSV. If omitted, splits_dir/valid.csv is used.",
-    )
-    args = parser.parse_args()
-
-    splits_dir = args.sdir.resolve()
-    output_dir = ensure_output_dir(args.odir.resolve())
-    train_split_path = args.train_split
-    valid_split_path = args.valid_split
-
-    if not splits_dir.is_dir():
-        raise FileNotFoundError(f"Директория сплитов не найдена: {splits_dir}")
-
-    ensure_vectorized_dir(splits_dir)
-
-    # Run training and evaluation
-    valid_df = load_valid_split(splits_dir, valid_split_path)
-
-    results = vectorize_splits(splits_dir, train_split_path, valid_split_path)
-    clf = train_classifier(results)
-    metrics = compute_metrics(clf, results, valid_df, output_dir)
-    save_metrics(metrics, output_dir)
-
-    save_valid_predictions(clf, results, valid_df, output_dir)
-=======
         help="Directory to store training artifacts (metrics_test.json).",
     )
     args = parser.parse_args()
@@ -603,7 +398,6 @@ def main() -> None:
     save_metrics(metrics, output_dir)
 
     save_test_predictions(clf, results, test_df, output_dir)
->>>>>>> origin/main
 
     print(f"Обучение завершено. Метрики сохранены в {output_dir / METRICS_FILENAME}")
 
