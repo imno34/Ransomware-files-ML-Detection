@@ -45,3 +45,6 @@ additional_data/*
 
 # Copilot context
 .github/copilot-instructions.md
+
+# Software configuration
+software/configuration.yaml

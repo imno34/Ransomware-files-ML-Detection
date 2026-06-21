@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import lightgbm as lgb
+import joblib
 from lightgbm import LGBMClassifier
 from sklearn.metrics import (
     average_precision_score,
@@ -30,6 +31,8 @@ ROC_PLOT_FILENAME = "roc_curve_lgbm.png"
 TEST_PREDICTIONS_FILENAME = "test_predictions.csv"
 EARLY_STOPPING_PLOT_FILENAME = "early_stopping_lgbm.png"
 EARLY_STOPPING_ROUNDS = 100
+MODEL_SAMPLE_DIRNAME = "model_sample"
+MODEL_BUNDLE_FILENAME = "model_bundle.joblib"
 
 # Load split CSV from an explicit path
 def load_split(csv_path: Path, split_name: str) -> pd.DataFrame:
@@ -52,7 +55,7 @@ def vectorize_splits(
     valid_split_path: Path,
     test_split_path: Path,
     output_dir: Path,
-) -> Dict[str, pd.DataFrame]:
+) -> Dict[str, object]:
     train_df = load_split(train_split_path, "train")
     valid_df = load_split(valid_split_path, "valid")
     test_df = load_split(test_split_path, "test")
@@ -66,11 +69,11 @@ def vectorize_splits(
     )
 # Train LightGBM classifier
 def train_classifier(
-    results: Dict[str, pd.DataFrame],
+    results: Dict[str, object],
 ) -> tuple[LGBMClassifier, Dict[str, Dict[str, list[float]]]]:
     clf = LGBMClassifier(
         num_leaves=64,
-        n_estimators=700,
+        n_estimators=2000,
         learning_rate=0.05,
         max_depth=-1,
         subsample=0.9,
@@ -97,6 +100,41 @@ def train_classifier(
         ],
     )
     return clf, evals_result
+
+
+def save_model_bundle(
+    clf: LGBMClassifier,
+    results: Dict[str, object],
+    output_dir: Path,
+    model_version: str,
+) -> Path:
+    from software.bundle import current_feature_schema_hash
+
+    feature_list = list(results["feature_list"])
+    dtype_map = dict(results["dtype_map"])
+    fill_values = dict(results["fill_values"])
+    scaler_columns = list(results["scaler_columns"])
+    scaler = results["scaler"]
+    if scaler_columns and scaler is None:
+        raise RuntimeError("Fitted StandardScaler is missing for non-empty scaler_columns")
+
+    bundle = {
+        "model": clf,
+        "feature_list": feature_list,
+        "dtype_map": dtype_map,
+        "fill_values": fill_values,
+        "scaler": scaler,
+        "scaler_columns": scaler_columns,
+        "label_map": dict(results["label_map"]),
+        "model_version": model_version,
+        "feature_schema_hash": current_feature_schema_hash(),
+    }
+
+    model_dir = output_dir / MODEL_SAMPLE_DIRNAME
+    model_dir.mkdir(parents=True, exist_ok=True)
+    bundle_path = model_dir / MODEL_BUNDLE_FILENAME
+    joblib.dump(bundle, bundle_path)
+    return bundle_path
 
 
 def save_early_stopping_plot(
@@ -248,7 +286,7 @@ def compute_pair_consistency_score(
 # Compute test metrics
 def compute_metrics(
     clf: LGBMClassifier,
-    results: Dict[str, pd.DataFrame],
+    results: Dict[str, object],
     test_df: pd.DataFrame,
     output_dir: Path,
 ) -> Dict[str, object]:
@@ -320,7 +358,7 @@ def save_metrics(metrics: Dict[str, object], output_dir: Path) -> None:
 
 def save_test_predictions(
     clf: LGBMClassifier,
-    results: Dict[str, pd.DataFrame],
+    results: Dict[str, object],
     test_df: pd.DataFrame,
     output_dir: Path,
 ) -> None:
@@ -381,6 +419,11 @@ def main() -> None:
         required=True,
         help="Directory to store training artifacts (metrics_test.json).",
     )
+    parser.add_argument(
+        "--mver",
+        required=True,
+        help="Model version stored in the joblib bundle.",
+    )
     args = parser.parse_args()
 
     output_dir = ensure_output_dir(args.odir.resolve())
@@ -393,6 +436,7 @@ def main() -> None:
 
     results = vectorize_splits(train_split_path, valid_split_path, test_split_path, output_dir)
     clf, evals_result = train_classifier(results)
+    bundle_path = save_model_bundle(clf, results, output_dir, args.mver)
     save_early_stopping_plot(clf, evals_result, output_dir)
     metrics = compute_metrics(clf, results, test_df, output_dir)
     save_metrics(metrics, output_dir)
@@ -400,6 +444,7 @@ def main() -> None:
     save_test_predictions(clf, results, test_df, output_dir)
 
     print(f"Обучение завершено. Метрики сохранены в {output_dir / METRICS_FILENAME}")
+    print(f"Model bundle saved to {bundle_path}")
 
 
 if __name__ == "__main__":

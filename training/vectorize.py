@@ -166,9 +166,9 @@ def fit_transform_scaler(
     valid_df: pd.DataFrame,
     test_df: pd.DataFrame,
     columns: Sequence[str],
-) -> None:
+) -> StandardScaler | None:
     if not columns:
-        return
+        return None
     scaler = StandardScaler()
     
     # Преобразование в numpy для производительности
@@ -188,6 +188,7 @@ def fit_transform_scaler(
         train_df[col] = train_scaled[:, idx]
         valid_df[col] = valid_scaled[:, idx]
         test_df[col] = test_scaled[:, idx]
+    return scaler
 
 # Финальное приведение типов
 def cast_column_dtypes(df: pd.DataFrame, dtype_map: Mapping[str, str]) -> None:
@@ -294,18 +295,10 @@ def vectorize(
     train_df: pd.DataFrame,
     valid_df: pd.DataFrame,
     test_df: pd.DataFrame,
-<<<<<<< HEAD
-    splits_dir: Path | str,
-) -> Dict[str, pd.DataFrame]:
-
-    vectorized_dir = Path(splits_dir) / VECTORIZE_SUBDIR
-    if not vectorized_dir.is_dir():
-        raise FileNotFoundError(f"Ожидаемая директория не найдена: {vectorized_dir}")
-=======
     splits_dir: Path | str | None = None,
     output_dir: Path | str | None = None,
     persist: bool = True,
-) -> Dict[str, pd.DataFrame]:
+) -> Dict[str, object]:
 
     if persist and output_dir is None and splits_dir is None:
         raise ValueError("Either output_dir or splits_dir must be provided for vectorized artifacts")
@@ -315,7 +308,6 @@ def vectorize(
         artifacts_root = Path(output_dir if output_dir is not None else splits_dir)
         vectorized_dir = artifacts_root / VECTORIZE_SUBDIR
         vectorized_dir.mkdir(parents=True, exist_ok=True)
->>>>>>> origin/main
 
     # Загрузка схемы числовых признаков из файла конфигурации
     feature_list, dtype_map = load_numeric_schema()
@@ -343,7 +335,7 @@ def vectorize(
 
     # 4. Стандартзизация
     scaler_cols = scaler_columns(feature_list, dtype_map)
-    fit_transform_scaler(train_X, valid_X, test_X, scaler_cols)
+    scaler = fit_transform_scaler(train_X, valid_X, test_X, scaler_cols)
 
     # 5. Приведение типов
     cast_column_dtypes(train_X, dtype_map)
@@ -359,19 +351,6 @@ def vectorize(
     class_weights = compute_class_weights(y_train)
 
     # 8. Сохранение артефактов
-<<<<<<< HEAD
-    persist_artifacts(
-        vectorized_dir,
-        train_X,
-        valid_X,
-        test_X,
-        y_train,
-        y_valid,
-        y_test,
-        feature_list,
-        class_weights,
-    )
-=======
     if persist:
         if vectorized_dir is None:
             raise RuntimeError("vectorized_dir is not initialized")
@@ -386,7 +365,6 @@ def vectorize(
             feature_list,
             class_weights,
         )
->>>>>>> origin/main
 
     # Возврат векторизованных данных
     return {
@@ -397,9 +375,10 @@ def vectorize(
         "y_valid": y_valid,
         "y_test": y_test,
         "feature_list": feature_list,
+        "dtype_map": dtype_map,
+        "fill_values": fill_values,
+        "scaler": scaler,
+        "scaler_columns": scaler_cols,
+        "label_map": dict(LABEL_MAP),
         "class_weights": class_weights,
-<<<<<<< HEAD
     }
-=======
-    }
->>>>>>> origin/main

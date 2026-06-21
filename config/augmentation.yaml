@@ -1,18 +1,6 @@
 # Квоты отбора файлов по исходному расширению (orig_ext).
 # Значения трактуются как доли и должны суммироваться в 1.0.
 orig_ext_quotas:
-<<<<<<< HEAD
-  7z: 0.15
-  zip: 0.15
-  rar: 0.15
-  png: 0.10
-  ppt: 0.10
-  exe: 0.10
-  dll: 0.10
-  apk: 0.05
-  so: 0.05
-  ods: 0.05
-=======
   gzip: 0.15 
   tar: 0.15
   rar: 0.15
@@ -24,14 +12,9 @@ orig_ext_quotas:
   epub: 0.05
   oxps: 0.05
 
->>>>>>> origin/main
 
 # Квоты алгоритмов аугментации.
 # Значения трактуются как доли внутри sampled_df и должны суммироваться в 1.0.
 algorithm_quotas:
-<<<<<<< HEAD
-  hybrid: 1.0
-=======
   header-only: 0.5
   intermittent: 0.5
->>>>>>> origin/main
